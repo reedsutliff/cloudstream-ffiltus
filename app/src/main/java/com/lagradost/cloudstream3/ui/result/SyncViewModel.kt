@@ -192,12 +192,23 @@ class SyncViewModel : ViewModel() {
     }
 
     fun modifyMaxEpisode(episodeNum: Int) {
-        Log.i(TAG, "modifyMaxEpisode = $episodeNum")
         modifyData { status ->
             status.watchedEpisodes = maxOf(
                 episodeNum,
                 status.watchedEpisodes ?: return@modifyData null
             )
+            status
+        }
+    }
+
+    fun modifyMaxEpisode(episodeNum: Int, positionSec: Int?, durationSec: Int?) {
+        modifyData { status ->
+            status.watchedEpisodes = maxOf(
+                episodeNum,
+                status.watchedEpisodes ?: return@modifyData null
+            )
+            status.watchPosition = positionSec
+            status.watchDuration = durationSec
             status
         }
     }

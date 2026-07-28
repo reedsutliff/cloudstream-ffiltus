@@ -89,6 +89,10 @@ abstract class SyncAPI : AuthAPI() {
         abstract var watchedEpisodes: Int?
         abstract var isFavorite: Boolean?
         abstract var maxEpisodes: Int?
+        /** Watch position in seconds when sync triggered (from player) */
+        open var watchPosition: Int? = null
+        /** Total duration in seconds when sync triggered (from player) */
+        open var watchDuration: Int? = null
     }
 
     data class SyncStatus(
@@ -97,6 +101,8 @@ abstract class SyncAPI : AuthAPI() {
         override var watchedEpisodes: Int?,
         override var isFavorite: Boolean? = null,
         override var maxEpisodes: Int? = null,
+        override var watchPosition: Int? = null,
+        override var watchDuration: Int? = null,
     ) : AbstractSyncStatus()
 
     data class SyncResult(

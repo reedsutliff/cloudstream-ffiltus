@@ -112,6 +112,8 @@ class CloudStreamSyncApi : SyncAPI() {
             }
 
             newStatus.watchedEpisodes?.let { put("episodes", it) }
+            newStatus.watchPosition?.let { put("watchPosition", it) }
+            newStatus.watchDuration?.let { put("watchDuration", it) }
             newStatus.score?.let {
                 put("score", it.toInt(10))
             }

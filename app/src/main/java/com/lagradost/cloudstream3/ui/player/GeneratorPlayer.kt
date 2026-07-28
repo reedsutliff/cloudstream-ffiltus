@@ -1714,7 +1714,11 @@ class GeneratorPlayer : FullScreenPlayer() {
                             )
                         ) {
                             maxEpisodeSet = meta.episode
-                            sync.modifyMaxEpisode(meta.totalEpisodeIndex ?: meta.episode)
+                            sync.modifyMaxEpisode(
+                                meta.totalEpisodeIndex ?: meta.episode,
+                                (position / 1000).toInt(),
+                                (duration / 1000).toInt()
+                            )
                         }
                     }
                 }
