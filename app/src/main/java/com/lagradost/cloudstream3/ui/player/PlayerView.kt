@@ -275,8 +275,7 @@ class PlayerView @JvmOverloads constructor(
                 SKIP_OP_VIDEO_PERCENTAGE,
                 PRELOAD_NEXT_EPISODE_PERCENTAGE,
                 NEXT_WATCH_EPISODE_PERCENTAGE,
-                UPDATE_SYNC_PROGRESS_PERCENTAGE,
-            ),
+            ) + SYNC_PROGRESS_PERCENTAGES,
         )
 
         if (player is CS3IPlayer) {

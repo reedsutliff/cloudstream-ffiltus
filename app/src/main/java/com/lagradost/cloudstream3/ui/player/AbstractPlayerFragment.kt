@@ -27,8 +27,8 @@ const val PRELOAD_NEXT_EPISODE_PERCENTAGE = 80
 // when the player should mark the episode as watched and resume watching the next
 const val NEXT_WATCH_EPISODE_PERCENTAGE = 90
 
-// when the player should sync the progress of "watched", TODO MAKE SETTING
-const val UPDATE_SYNC_PROGRESS_PERCENTAGE = 80
+// Sync thresholds for watch progress — syncs at each checkpoint for more frequent updates
+val SYNC_PROGRESS_PERCENTAGES = listOf(25, 50, 75, 90)
 
 @OptIn(UnstableApi::class)
 abstract class AbstractPlayerFragment<T : ViewBinding>(

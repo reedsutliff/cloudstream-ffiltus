@@ -1668,7 +1668,7 @@ class GeneratorPlayer : FullScreenPlayer() {
         super.onDestroy()
     }
 
-    var maxEpisodeSet: Int? = null
+    var syncedThresholds: MutableSet<String> = mutableSetOf()
     var hasRequestedStamps: Boolean = false
     override fun playerPositionChanged(position: Long, duration: Long) {
         // Don't save livestream data
@@ -1704,21 +1704,23 @@ class GeneratorPlayer : FullScreenPlayer() {
         var isOpVisible = false
         when (val meta = currentMeta) {
             is ResultEpisode -> {
-                if (percentage >= UPDATE_SYNC_PROGRESS_PERCENTAGE && (maxEpisodeSet
-                        ?: -1) < meta.episode
-                ) {
-                    context?.let { ctx ->
-                        val settingsManager = PreferenceManager.getDefaultSharedPreferences(ctx)
-                        if (settingsManager.getBoolean(
-                                ctx.getString(R.string.episode_sync_enabled_key), true
-                            )
-                        ) {
-                            maxEpisodeSet = meta.episode
-                            sync.modifyMaxEpisode(
-                                meta.totalEpisodeIndex ?: meta.episode,
-                                (position / 1000).toInt(),
-                                (duration / 1000).toInt()
-                            )
+                // Sync at each threshold for more frequent position updates
+                for (threshold in SYNC_PROGRESS_PERCENTAGES) {
+                    val key = "${meta.episode}:${threshold}"
+                    if (percentage >= threshold && key !in syncedThresholds) {
+                        syncedThresholds.add(key)
+                        context?.let { ctx ->
+                            val settingsManager = PreferenceManager.getDefaultSharedPreferences(ctx)
+                            if (settingsManager.getBoolean(
+                                    ctx.getString(R.string.episode_sync_enabled_key), true
+                                )
+                            ) {
+                                sync.modifyMaxEpisode(
+                                    meta.totalEpisodeIndex ?: meta.episode,
+                                    (position / 1000).toInt(),
+                                    (duration / 1000).toInt()
+                                )
+                            }
                         }
                     }
                 }
