@@ -1663,6 +1663,7 @@ class GeneratorPlayer : FullScreenPlayer() {
     }
 
     override fun onDestroy() {
+        syncOnPlayerExit()
         ResultFragment.updateUI()
         currentVerifyLink?.cancel()
         super.onDestroy()
@@ -2176,9 +2177,39 @@ class GeneratorPlayer : FullScreenPlayer() {
     }
 
     fun exitPlayer() {
+        // Sync current position before exiting
+        syncOnPlayerExit()
         playerHostView?.exitFullscreen()
         player.release()
         activity?.popCurrentPage()
+    }
+
+    private fun syncOnPlayerExit() {
+        if (!this::sync.isInitialized) return
+        val meta = currentMeta as? ResultEpisode ?: return
+        if (meta.tvType?.isLiveStream() == true) return
+        if (meta.tvType == TvType.NSFW) return
+
+        val position = player.getPosition() ?: return
+        val duration = player.getDuration() ?: return
+        if (duration <= 0L) return
+
+        val posSec = (position / 1000).toInt()
+        val durSec = (duration / 1000).toInt()
+
+        context?.let { ctx ->
+            val settingsManager = PreferenceManager.getDefaultSharedPreferences(ctx)
+            if (settingsManager.getBoolean(
+                    ctx.getString(R.string.episode_sync_enabled_key), true
+                )
+            ) {
+                sync.modifyMaxEpisode(
+                    meta.totalEpisodeIndex ?: meta.episode,
+                    posSec,
+                    durSec
+                )
+            }
+        }
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
