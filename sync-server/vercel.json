@@ -1,0 +1,11 @@
+{
+  "version": 2,
+  "rewrites": [
+    { "source": "/", "destination": "/api/track/" },
+    { "source": "/track", "destination": "/api/track/" },
+    { "source": "/track/:path(.*)", "destination": "/api/track/:path" }
+  ],
+  "functions": {
+    "api/**/*.js": { "maxDuration": 10 }
+  }
+}

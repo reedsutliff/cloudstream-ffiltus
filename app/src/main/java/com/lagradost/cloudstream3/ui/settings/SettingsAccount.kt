@@ -29,6 +29,7 @@ import com.lagradost.cloudstream3.databinding.DeviceAuthBinding
 import com.lagradost.cloudstream3.mvvm.logError
 import com.lagradost.cloudstream3.syncproviders.AccountManager.Companion.aniListApi
 import com.lagradost.cloudstream3.syncproviders.AccountManager.Companion.animeSkipApi
+import com.lagradost.cloudstream3.syncproviders.AccountManager.Companion.cloudStreamSyncApi
 import com.lagradost.cloudstream3.syncproviders.AccountManager.Companion.malApi
 import com.lagradost.cloudstream3.syncproviders.AccountManager.Companion.kitsuApi
 import com.lagradost.cloudstream3.syncproviders.AccountManager.Companion.openSubtitlesApi
@@ -473,6 +474,7 @@ class SettingsAccount : BasePreferenceFragmentCompat(), BiometricCallback {
                 R.string.kitsu_key to SyncRepo(kitsuApi),
                 R.string.anilist_key to SyncRepo(aniListApi),
                 R.string.simkl_key to SyncRepo(simklApi),
+                R.string.cssync_key to SyncRepo(cloudStreamSyncApi),
                 R.string.opensubtitles_key to SubtitleRepo(openSubtitlesApi),
                 R.string.subdl_key to SubtitleRepo(subDlApi),
                 R.string.animeskip_key to PlainAuthRepo(animeSkipApi),

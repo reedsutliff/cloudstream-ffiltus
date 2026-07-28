@@ -1,0 +1,10 @@
+{
+  "name": "cloudstream-sync",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Cross-device watch history sync for CloudStream",
+  "scripts": {
+    "dev": "vercel dev",
+    "deploy": "vercel deploy --prod"
+  }
+}

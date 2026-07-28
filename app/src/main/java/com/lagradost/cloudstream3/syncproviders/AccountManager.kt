@@ -5,6 +5,7 @@ import com.lagradost.cloudstream3.CloudStreamApp.Companion.setKey
 import com.lagradost.cloudstream3.LoadResponse
 import com.lagradost.cloudstream3.syncproviders.providers.Addic7ed
 import com.lagradost.cloudstream3.syncproviders.providers.AniListApi
+import com.lagradost.cloudstream3.syncproviders.providers.CloudStreamSyncApi
 import com.lagradost.cloudstream3.syncproviders.providers.KitsuApi
 import com.lagradost.cloudstream3.syncproviders.providers.LocalList
 import com.lagradost.cloudstream3.syncproviders.providers.MALApi
@@ -24,6 +25,7 @@ abstract class AccountManager {
         val aniListApi = AniListApi()
         val simklApi = SimklApi()
         val localListApi = LocalList()
+        val cloudStreamSyncApi = CloudStreamSyncApi()
 
         val openSubtitlesApi = OpenSubtitlesApi()
         val addic7ed = Addic7ed()
@@ -67,6 +69,7 @@ abstract class AccountManager {
             SyncRepo(aniListApi),
             SyncRepo(simklApi),
             SyncRepo(localListApi),
+            SyncRepo(cloudStreamSyncApi),
             SubtitleRepo(openSubtitlesApi),
             SubtitleRepo(addic7ed),
             SubtitleRepo(subDlApi),
@@ -129,7 +132,8 @@ abstract class AccountManager {
             SyncRepo(kitsuApi),
             SyncRepo(aniListApi),
             SyncRepo(simklApi),
-            SyncRepo(localListApi)
+            SyncRepo(localListApi),
+            SyncRepo(cloudStreamSyncApi)
         )
 
         const val APP_STRING = "cloudstreamapp"

@@ -31,6 +31,9 @@
         <Preference
             android:icon="@drawable/animeskip"
             android:key="@string/animeskip_key" />
+        <Preference
+            android:icon="@drawable/cloud_2_solid"
+            android:key="@string/cssync_key" />
 
         <SwitchPreference
             android:defaultValue="false"
