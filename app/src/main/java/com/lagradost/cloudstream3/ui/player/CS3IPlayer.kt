@@ -102,6 +102,8 @@ import com.lagradost.cloudstream3.utils.Coroutines.runOnMainThread
 import com.lagradost.cloudstream3.utils.DataStoreHelper.currentAccount
 import com.lagradost.cloudstream3.utils.DrmExtractorLink
 import com.lagradost.cloudstream3.utils.ExtractorLink
+import com.lagradost.cloudstream3.syncproviders.providers.CloudStreamSyncApi
+import com.lagradost.cloudstream3.utils.Coroutines.ioSafe
 import com.lagradost.cloudstream3.utils.ExtractorLinkPlayList
 import com.lagradost.cloudstream3.utils.ExtractorLinkType
 import com.lagradost.cloudstream3.utils.PLAYREADY_DRM_UUID
@@ -164,6 +166,9 @@ class CS3IPlayer : IPlayer {
     private var lastMuteVolume: Float = 1.0f
 
     private var currentLink: ExtractorLink? = null
+    /** Content provider name (Gogoanime, Zoro, etc.) for provider quality tracking */
+    @Volatile
+    var providerName: String? = null
     private var currentDownloadedFile: ExtractorUri? = null
     private var hasUsedFirstRender = false
 
@@ -1571,11 +1576,36 @@ class CS3IPlayer : IPlayer {
 
 
                         else -> {
+                            // Report playback error for provider quality tracking
+                            reportProviderError(error)
                             event(ErrorEvent(error))
                         }
                     }
 
                     super.onPlayerError(error)
+                }
+
+                private fun reportProviderError(error: PlaybackException) {
+                    val provider = providerName ?: return
+                    val errorType = when (error.errorCode) {
+                        PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED -> "network"
+                        PlaybackException.ERROR_CODE_IO_FILE_NOT_FOUND -> "not_found"
+                        PlaybackException.ERROR_CODE_IO_UNSPECIFIED -> "io_error"
+                        PlaybackException.ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED -> "unsupported_container"
+                        PlaybackException.ERROR_CODE_PARSING_MANIFEST_UNSUPPORTED -> "unsupported_manifest"
+                        PlaybackException.ERROR_CODE_DECODER_INIT_FAILED -> "decoder_init_failed"
+                        PlaybackException.ERROR_CODE_DECODING_FAILED -> "decoding_failed"
+                        PlaybackException.ERROR_CODE_DRM_UNSUPPORTED -> "drm_unsupported"
+                        else -> "playback_error_${error.errorCode}"
+                    }
+                    ioSafe {
+                        CloudStreamSyncApi.reportProviderLoad(
+                            providerName = provider,
+                            success = false,
+                            loadTimeMs = 0,
+                            errorType = errorType,
+                        )
+                    }
                 }
 
                 //override fun onCues(cues: MutableList<Cue>) {

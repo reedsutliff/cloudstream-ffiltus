@@ -11,6 +11,7 @@ import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.preference.PreferenceManager
 import com.lagradost.cloudstream3.APIHolder
 import com.lagradost.cloudstream3.APIHolder.apis
 import com.lagradost.cloudstream3.APIHolder.getApiFromNameNull
@@ -68,6 +69,7 @@ import com.lagradost.cloudstream3.sortUrls
 import com.lagradost.cloudstream3.syncproviders.AccountManager
 import com.lagradost.cloudstream3.syncproviders.AccountManager.Companion.secondsToReadable
 import com.lagradost.cloudstream3.syncproviders.SyncAPI
+import com.lagradost.cloudstream3.syncproviders.providers.CloudStreamSyncApi
 import com.lagradost.cloudstream3.syncproviders.providers.Kitsu
 import com.lagradost.cloudstream3.ui.APIRepository
 import com.lagradost.cloudstream3.ui.WatchType
@@ -126,6 +128,7 @@ import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.ExtractorLinkType
 import com.lagradost.cloudstream3.utils.FillerEpisodeCheck
 import com.lagradost.cloudstream3.utils.INFER_TYPE
+import com.lagradost.cloudstream3.utils.ProviderRankings
 import com.lagradost.cloudstream3.utils.Qualities
 import com.lagradost.cloudstream3.utils.UIHelper.navigate
 import com.lagradost.cloudstream3.utils.UiText
@@ -145,6 +148,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import java.util.concurrent.TimeUnit
 
 /** This starts at 1 */
@@ -1227,16 +1231,49 @@ class ResultViewModel2 : ViewModel() {
     ) {
         // TODO Add skip loading here
         loadLinks(result, isVisible = true, sourceTypes, isCasting = isCasting) { links ->
-            // Could not find a better way to do this
-            //val context = CloudStreamApp.context
+            // If the sync server is configured, try to fetch provider rankings
+            val serverUrl = CloudStreamSyncApi.activeServerUrl
+            val rankings = if (serverUrl != null) {
+                try {
+                    runBlocking { ProviderRankings.getRankings(serverUrl) }
+                } catch (_: Exception) { emptyMap() }
+            } else emptyMap()
+
+            val provider = result.apiName
+            val providerScore = rankings[provider]
+            val scoreTag = if (providerScore != null) " [${providerScore}]" else ""
+
+            // Re-sort links: prefer links from higher-ranked providers, then by quality
+            val sortedLinks = links.links.sortedByDescending { link ->
+                val linkProviderScore = rankings[link.source] ?: 0
+                (linkProviderScore * 1000) + link.quality
+            }
+
+            // Auto-select: if a provider has a strong score (>60) and there's a clear best link
+            // at 1080p+, skip the popup and auto-pick the first (best) link
+            val context = (activity as? Activity)
+            val settingsManager = context?.let {
+                PreferenceManager.getDefaultSharedPreferences(it)
+            }
+            val enableAutoSelect = settingsManager?.getBoolean("provider_auto_select", false) == true
+            val autoSelectThreshold = 60
+
+            if (enableAutoSelect && providerScore != null && providerScore > autoSelectThreshold && sortedLinks.isNotEmpty()) {
+                // Find the best quality link
+                val bestQuality = sortedLinks.maxByOrNull { it.quality }
+                if (bestQuality != null) {
+                    val idx = links.links.indexOfFirst { it.url == bestQuality.url }
+                    if (idx >= 0) {
+                        callback.invoke(links to idx)
+                        return@loadLinks
+                    }
+                }
+            }
+
             postPopup(
                 text,
-                links.links.map { txt("${it.name} ${Qualities.getStringByInt(it.quality)}") }
-                /*.amap {
-                val size =
-                    it.getVideoSize()?.let { size -> " " + formatFileSize(context, size) } ?: ""
-                txt("${it.name} ${Qualities.getStringByInt(it.quality)}$size")
-                }*/) {
+                sortedLinks.map { txt("${provider}$scoreTag · ${it.name} ${Qualities.getStringByInt(it.quality)}") }
+            ) {
                 callback.invoke(links to (it ?: return@postPopup))
             }
         }

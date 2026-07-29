@@ -496,6 +496,10 @@ class GeneratorPlayer : FullScreenPlayer() {
     private fun loadLink(link: VideoLink?, sameEpisode: Boolean) {
         if (link == null) return
         isPlayerActive.set(true)
+        // Set provider name for quality tracking
+        (currentMeta as? ResultEpisode)?.let { meta ->
+            player.providerName = meta.apiName
+        }
         // manage UI
         binding?.playerLoadingOverlay?.isVisible = false
         val isTorrent =
