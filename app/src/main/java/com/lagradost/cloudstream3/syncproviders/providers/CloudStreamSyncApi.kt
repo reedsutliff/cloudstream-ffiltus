@@ -24,6 +24,42 @@ import java.net.URL
  * The "auth" is the sync phrase and profile name stored in AuthToken.
  */
 class CloudStreamSyncApi : SyncAPI() {
+    companion object {
+        /** Most recently used server URL — also used for provider reporting */
+        var activeServerUrl: String? = null
+
+        /**
+         * Report provider load outcome to the global provider ranking endpoint.
+         * Called from RepoLinkGenerator after each provider attempt.
+         */
+        suspend fun reportProviderLoad(
+            providerName: String,
+            success: Boolean,
+            loadTimeMs: Long,
+            errorType: String? = null,
+        ) {
+            val server = activeServerUrl ?: return
+            try {
+                val body = JSONObject().apply {
+                    put("provider", providerName)
+                    put("success", success)
+                    put("loadTimeMs", loadTimeMs)
+                    errorType?.let { put("errorType", it) }
+                }
+                val url = URL("$server/api/providers/report")
+                val conn = url.openConnection() as HttpURLConnection
+                conn.requestMethod = "POST"
+                conn.doOutput = true
+                conn.setRequestProperty("Content-Type", "application/json")
+                conn.setRequestProperty("User-Agent", "CloudStream/3.0")
+                conn.outputStream.write(body.toString().toByteArray())
+                conn.responseCode // consume
+                conn.disconnect()
+            } catch (_: Exception) {
+                // Best-effort — don't crash on report failure
+            }
+        }
+    }
     override val name = "CloudStream Sync"
     override val idPrefix = "cssync"
     override val requiresLogin = false
@@ -81,8 +117,11 @@ class CloudStreamSyncApi : SyncAPI() {
     private fun getPhrase(auth: AuthData?): String? =
         auth?.token?.accessToken?.takeIf { it.isNotBlank() }
 
-    private fun getServer(auth: AuthData?): String =
-        auth?.token?.payload?.takeIf { it.isNotBlank() } ?: defaultServerUrl
+    private fun getServer(auth: AuthData?): String {
+        val url = auth?.token?.payload?.takeIf { it.isNotBlank() } ?: defaultServerUrl
+        activeServerUrl = url
+        return url
+    }
 
     private fun getProfile(auth: AuthData?): String =
         auth?.user?.name?.takeIf { it.isNotBlank() } ?: "default"
@@ -114,6 +153,7 @@ class CloudStreamSyncApi : SyncAPI() {
             newStatus.watchedEpisodes?.let { put("episodes", it) }
             newStatus.watchPosition?.let { put("watchPosition", it) }
             newStatus.watchDuration?.let { put("watchDuration", it) }
+            newStatus.provider?.let { put("provider", it) }
             newStatus.score?.let {
                 put("score", it.toInt(10))
             }

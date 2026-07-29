@@ -7,8 +7,10 @@
 //   Conflict: newer updatedAt wins (5s grace window → most progressed wins)
 //   watchedEpisodes: always take max (never regress)
 //   Atomic upsert via Redis EVAL (Lua) to prevent race conditions
+//   Provider watch reports forwarded to global provider stats
 
 const KV = require("../../lib/kv.js");
+const GLOBAL_STATS_KEY = "global:provider:stats";
 
 // ── Helpers ──
 
@@ -137,6 +139,53 @@ const LUA_MERGE_SCRIPT = `
 end
 `;
 
+// ── Provider report from sync data ──
+// When a sync entry includes a provider + watchPosition, forward as a watch report
+async function reportProviderWatch(history) {
+  if (!Array.isArray(history)) return;
+  for (const entry of history) {
+    const provider = entry.provider;
+    if (!provider) continue;
+    const watchPositionSec = entry.watchPosition;
+    const watchDurationSec = entry.watchDuration;
+    if (watchPositionSec == null && watchDurationSec == null) continue;
+
+    // Read global provider stats and update
+    const stats = await KV.get(GLOBAL_STATS_KEY);
+    if (!stats) continue;
+    const name = provider.trim();
+    if (!stats.providers[name]) continue;
+    const p = stats.providers[name];
+    const fraction = (watchPositionSec != null && watchDurationSec > 0)
+      ? watchPositionSec / watchDurationSec : null;
+
+    p.playbacksStarted = (p.playbacksStarted || 0) + 1;
+    p.totalWatchTimeMs = (p.totalWatchTimeMs || 0) + (watchPositionSec || 0) * 1000;
+    if (fraction !== null) {
+      if (fraction > (p.maxWatchFraction || 0)) p.maxWatchFraction = fraction;
+      if (fraction >= 0.8) p.playbacksCompleted = (p.playbacksCompleted || 0) + 1;
+      else if (fraction < 0.2) p.playbacksAbandoned = (p.playbacksAbandoned || 0) + 1;
+    }
+    p.avgWatchTimePerPlayback = p.playbacksStarted > 0
+      ? Math.round(p.totalWatchTimeMs / p.playbacksStarted) : null;
+    p.updatedAt = Date.now();
+
+    // Recalculate score with recency decay
+    const daysSinceUpdate = p.updatedAt ? (Date.now() - p.updatedAt) / (86400 * 1000) : 0;
+    if (daysSinceUpdate > 0) {
+      p.score = Math.round(p.score * Math.pow(0.97, daysSinceUpdate));
+    }
+    if (fraction !== null) {
+      if (fraction >= 0.8) p.score += 30;
+      else if (fraction < 0.2) p.score += -15;
+      else p.score += 5;
+    }
+    p.score = Math.max(-100, Math.min(100, p.score));
+  }
+  stats.updatedAt = Date.now();
+  await KV.set(GLOBAL_STATS_KEY, stats);
+}
+
 // ── Handler ──
 
 module.exports = async function handler(req, res) {
@@ -210,6 +259,7 @@ module.exports = async function handler(req, res) {
       // Full replace — client says "this is the entire truth"
       const payload = { deviceId, profile: pName, history, createdAt: now, updatedAt: now };
       await KV.set(profileKey, payload);
+      reportProviderWatch(history).catch(() => {}); // fire-and-forget
       return res.status(200).json({ ok: true, phrase: cleanPhrase, profile: pName, entryCount: history.length, mode: "replace" });
     }
 
@@ -218,6 +268,7 @@ module.exports = async function handler(req, res) {
     try {
       const result = await KV.cmd("EVAL", LUA_MERGE_SCRIPT, 1, profileKey, JSON.stringify(history), String(now));
       const parsed = JSON.parse(result);
+      reportProviderWatch(history).catch(() => {}); // fire-and-forget
       return res.status(200).json({
         ok: true,
         phrase: cleanPhrase,
@@ -244,6 +295,8 @@ module.exports = async function handler(req, res) {
     existing.deviceId = deviceId;
     existing.updatedAt = now;
     await KV.set(profileKey, existing);
+
+    reportProviderWatch(history).catch(() => {}); // fire-and-forget
 
     return res.status(200).json({
       ok: true,

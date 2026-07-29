@@ -93,6 +93,8 @@ abstract class SyncAPI : AuthAPI() {
         open var watchPosition: Int? = null
         /** Total duration in seconds when sync triggered (from player) */
         open var watchDuration: Int? = null
+        /** Provider name that served this episode (for quality tracking) */
+        open var provider: String? = null
     }
 
     data class SyncStatus(
@@ -103,6 +105,7 @@ abstract class SyncAPI : AuthAPI() {
         override var maxEpisodes: Int? = null,
         override var watchPosition: Int? = null,
         override var watchDuration: Int? = null,
+        override var provider: String? = null,
     ) : AbstractSyncStatus()
 
     data class SyncResult(

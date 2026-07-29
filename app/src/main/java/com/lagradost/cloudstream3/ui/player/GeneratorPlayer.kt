@@ -1719,7 +1719,8 @@ class GeneratorPlayer : FullScreenPlayer() {
                                 sync.modifyMaxEpisode(
                                     meta.totalEpisodeIndex ?: meta.episode,
                                     (position / 1000).toInt(),
-                                    (duration / 1000).toInt()
+                                    (duration / 1000).toInt(),
+                                    meta.apiName  // provider name for quality tracking
                                 )
                             }
                         }
@@ -2206,7 +2207,8 @@ class GeneratorPlayer : FullScreenPlayer() {
                 sync.modifyMaxEpisode(
                     meta.totalEpisodeIndex ?: meta.episode,
                     posSec,
-                    durSec
+                    durSec,
+                    meta.apiName  // provider name for quality tracking
                 )
             }
         }

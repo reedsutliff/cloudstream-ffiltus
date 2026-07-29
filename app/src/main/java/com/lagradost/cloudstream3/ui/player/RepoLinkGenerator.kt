@@ -4,6 +4,7 @@ import android.util.Log
 import com.lagradost.cloudstream3.APIHolder.getApiFromNameNull
 import com.lagradost.cloudstream3.APIHolder.unixTime
 import com.lagradost.cloudstream3.LoadResponse
+import com.lagradost.cloudstream3.syncproviders.providers.CloudStreamSyncApi
 import com.lagradost.cloudstream3.ui.APIRepository
 import com.lagradost.cloudstream3.ui.result.ResultEpisode
 import com.lagradost.cloudstream3.utils.AppContextUtils.html
@@ -104,52 +105,64 @@ class RepoLinkGenerator(
             }
         }
 
-        val result = APIRepository(
-            getApiFromNameNull(current.apiName) ?: throw Exception("This provider does not exist")
-        ).loadLinks(
-            current.data,
-            isCasting = isCasting,
-            subtitleCallback = { file ->
-                Log.d(TAG, "Loaded SubtitleFile: $file")
-                val correctFile = PlayerSubtitleHelper.getSubtitleData(file)
-                if (correctFile.url.isBlank() || !currentSubsUrls.add(correctFile.url)) {
-                    return@loadLinks
-                }
-
-                // this part makes sure that all names are unique for UX
-                val nameDecoded = correctFile.originalName.html().toString()
-                    .trim() // `%3Ch1%3Esub%20name…` → `<h1>sub name…` → `sub name…`
-                val suffixCount =
-                    lastCountedSuffix.getOrPut(nameDecoded) { AtomicInteger(0) }.incrementAndGet()
-
-                val updatedFile =
-                    correctFile.copy(originalName = nameDecoded, nameSuffix = "$suffixCount")
-
-                synchronized(currentCache) {
-                    if (currentCache.subtitleCache.add(updatedFile)) {
-                        subtitleCallback(updatedFile)
-                        currentCache.lastCachedTimestamp = unixTime
+        val result = run {
+            val startTime = System.currentTimeMillis()
+            val apiRepo = APIRepository(
+                getApiFromNameNull(current.apiName) ?: throw Exception("This provider does not exist")
+            )
+            val loadResult = apiRepo.loadLinks(
+                current.data,
+                isCasting = isCasting,
+                subtitleCallback = { file ->
+                    Log.d(TAG, "Loaded SubtitleFile: $file")
+                    val correctFile = PlayerSubtitleHelper.getSubtitleData(file)
+                    if (correctFile.url.isBlank() || !currentSubsUrls.add(correctFile.url)) {
+                        return@loadLinks
                     }
-                }
-            },
-            callback = { link ->
-                Log.d(TAG, "Loaded ExtractorLink: $link")
-                if (link.url.isBlank() || !currentLinksUrls.add(link.url)) {
-                    return@loadLinks
-                }
 
-                synchronized(currentCache) {
-                    if (currentCache.linkCache.add(link)) {
-                        if (sourceTypes.contains(link.type)) {
-                            callback(Pair(link, null))
+                    // this part makes sure that all names are unique for UX
+                    val nameDecoded = correctFile.originalName.html().toString()
+                        .trim() // `%3Ch1%3Esub%20name…` → `<h1>sub name…` → `sub name…`
+                    val suffixCount =
+                        lastCountedSuffix.getOrPut(nameDecoded) { AtomicInteger(0) }.incrementAndGet()
+
+                    val updatedFile =
+                        correctFile.copy(originalName = nameDecoded, nameSuffix = "$suffixCount")
+
+                    synchronized(currentCache) {
+                        if (currentCache.subtitleCache.add(updatedFile)) {
+                            subtitleCallback(updatedFile)
+                            currentCache.lastCachedTimestamp = unixTime
                         }
+                    }
+                },
+                callback = { link ->
+                    Log.d(TAG, "Loaded ExtractorLink: $link")
+                    if (link.url.isBlank() || !currentLinksUrls.add(link.url)) {
+                        return@loadLinks
+                    }
 
-                        currentCache.linkCache.add(link)
-                        currentCache.lastCachedTimestamp = unixTime
+                    synchronized(currentCache) {
+                        if (currentCache.linkCache.add(link)) {
+                            if (sourceTypes.contains(link.type)) {
+                                callback(Pair(link, null))
+                            }
+
+                            currentCache.linkCache.add(link)
+                            currentCache.lastCachedTimestamp = unixTime
+                        }
                     }
                 }
-            }
-        )
+            )
+            val elapsed = System.currentTimeMillis() - startTime
+            // Report provider load outcome for quality tracking
+            CloudStreamSyncApi.reportProviderLoad(
+                providerName = current.apiName,
+                success = loadResult,
+                loadTimeMs = elapsed,
+            )
+            loadResult
+        }
 
         synchronized(currentCache) {
             currentCache.saturated = currentCache.linkCache.isNotEmpty()

@@ -213,6 +213,19 @@ class SyncViewModel : ViewModel() {
         }
     }
 
+    fun modifyMaxEpisode(episodeNum: Int, positionSec: Int?, durationSec: Int?, providerName: String?) {
+        modifyData { status ->
+            status.watchedEpisodes = maxOf(
+                episodeNum,
+                status.watchedEpisodes ?: return@modifyData null
+            )
+            status.watchPosition = positionSec
+            status.watchDuration = durationSec
+            status.provider = providerName
+            status
+        }
+    }
+
     /// modifies the current sync data, return null if you don't want to change it
     private fun modifyData(update: ((SyncAPI.AbstractSyncStatus) -> (SyncAPI.AbstractSyncStatus?))) =
         ioSafe {
