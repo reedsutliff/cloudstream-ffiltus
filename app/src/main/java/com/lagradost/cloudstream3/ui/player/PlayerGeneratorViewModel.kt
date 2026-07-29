@@ -26,6 +26,9 @@ import kotlinx.collections.immutable.toPersistentSet
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
+import com.lagradost.cloudstream3.syncproviders.providers.CloudStreamSyncApi
+import com.lagradost.cloudstream3.utils.ProviderRankings
 import org.jetbrains.annotations.Contract
 import java.util.concurrent.ConcurrentHashMap
 
@@ -338,10 +341,25 @@ class PlayerGeneratorViewModel : ViewModel() {
         currentJob?.cancel()
         val index = episodeIndex
 
+        // If the provider has a strong ranking, skip the loading overlay entirely
+        // and start loading directly — no "skip loading source" needed
+        val startImmediately = runBlocking {
+            val serverUrl = CloudStreamSyncApi.activeServerUrl
+            if (serverUrl != null) {
+                try {
+                    val rankings = ProviderRankings.getRankings(serverUrl)
+                    val meta = generator?.videos?.getOrNull(index)
+                    val providerName = (meta as? ResultEpisode)?.apiName
+                    val score = providerName?.let { rankings[it] }
+                    score != null && score > 50
+                } catch (_: Exception) { false }
+            } else false
+        }
+
         // Clear old data and reset the state
         modifyState {
             VideoState(
-                loading = Resource.Loading(),
+                loading = if (startImmediately) Resource.Success(Unit) else Resource.Loading(),
                 generatorState = generator?.let { gen ->
                     GeneratorState(
                         meta = gen.videos.getOrNull(index),
